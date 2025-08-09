@@ -5,36 +5,23 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
-const roomName = "mainRoom";
-
 io.on("connection", (socket) => {
-  socket.join(roomName);
-
-  socket.on("send-location", (location) => {
-    socket.data.location = location;
-    socket.to(roomName).emit("user-location", {
-      id: socket.id,
-      location
-    });
-  });
-
   socket.on("offer", (offer) => {
-    socket.to(roomName).emit("offer", offer);
+    socket.broadcast.emit("offer", offer);
   });
 
   socket.on("answer", (answer) => {
-    socket.to(roomName).emit("answer", answer);
+    socket.broadcast.emit("answer", answer);
   });
 
   socket.on("ice-candidate", (candidate) => {
-    socket.to(roomName).emit("ice-candidate", candidate);
-  });
-
-  socket.on("disconnect", () => {
-    socket.to(roomName).emit("user-left", socket.id);
+    socket.broadcast.emit("ice-candidate", candidate);
   });
 });
 
