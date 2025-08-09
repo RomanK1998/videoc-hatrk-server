@@ -5,45 +5,39 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*"
-  }
+  cors: { origin: "*" }
 });
 
-let users = [];
+const roomName = "mainRoom";
 
 io.on("connection", (socket) => {
-  console.log("Пользователь подключился:", socket.id);
+  socket.join(roomName);
 
-  socket.on("join", () => {
-    users.push(socket.id);
-    console.log("Сейчас в комнате:", users);
-
-    // Если пользователь первый — ждём второго
-    // Если пользователь второй — говорим первому создать оффер
-    if (users.length === 2) {
-      io.to(users[0]).emit("create-offer");
-    }
+  socket.on("send-location", (location) => {
+    socket.data.location = location;
+    socket.to(roomName).emit("user-location", {
+      id: socket.id,
+      location
+    });
   });
 
   socket.on("offer", (offer) => {
-    socket.broadcast.emit("offer", offer);
+    socket.to(roomName).emit("offer", offer);
   });
 
   socket.on("answer", (answer) => {
-    socket.broadcast.emit("answer", answer);
+    socket.to(roomName).emit("answer", answer);
   });
 
   socket.on("ice-candidate", (candidate) => {
-    socket.broadcast.emit("ice-candidate", candidate);
+    socket.to(roomName).emit("ice-candidate", candidate);
   });
 
   socket.on("disconnect", () => {
-    console.log("Пользователь отключился:", socket.id);
-    users = users.filter(id => id !== socket.id);
+    socket.to(roomName).emit("user-left", socket.id);
   });
 });
 
 server.listen(3000, () => {
-  console.log("Сервер запущен на порту 3000");
+  console.log("Server running on port 3000");
 });
