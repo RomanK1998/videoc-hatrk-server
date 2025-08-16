@@ -5,17 +5,22 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
+// Socket.IO с правильным CORS
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET","POST"] }
+    cors: {
+        origin: "https://romank1998.github.io", // разрешаем фронтенд на GitHub Pages
+        methods: ["GET","POST"],
+        credentials: true
+    }
 });
 
 // Обработка соединений
 io.on("connection", socket => {
-    console.log("New connection:", socket.id);
+    console.log("Новое соединение:", socket.id);
 
-    // Клиент присоединяется к комнате
+    // Присоединение к комнате
     socket.on("join-room", ({ roomID, name }) => {
-        console.log(`${name} (${socket.id}) joined room ${roomID}`);
+        console.log(`${name} (${socket.id}) присоединился к комнате ${roomID}`);
         socket.join(roomID);
         socket.data.name = name;
 
@@ -37,24 +42,24 @@ io.on("connection", socket => {
 
     // Получение оффера
     socket.on("offer", ({ roomID, offer }) => {
-        console.log(`Offer from ${socket.id} to room ${roomID}`);
+        console.log(`Оффер от ${socket.id} в комнату ${roomID}`);
         socket.to(roomID).emit("offer", { from: socket.id, offer });
     });
 
     // Получение ответа
     socket.on("answer", ({ roomID, answer }) => {
-        console.log(`Answer from ${socket.id} to room ${roomID}`);
+        console.log(`Ответ от ${socket.id} в комнату ${roomID}`);
         socket.to(roomID).emit("answer", { from: socket.id, answer });
     });
 
     // Получение ICE-кандидата
     socket.on("ice-candidate", ({ roomID, candidate }) => {
-        console.log(`ICE candidate from ${socket.id} to room ${roomID}`, candidate ? candidate.candidate : null);
+        console.log(`ICE кандидат от ${socket.id} в комнату ${roomID}`, candidate ? candidate.candidate : null);
         socket.to(roomID).emit("ice-candidate", { from: socket.id, candidate });
     });
 
     socket.on("disconnect", () => {
-        console.log("Disconnected:", socket.id);
+        console.log("Отключение:", socket.id);
     });
 });
 
