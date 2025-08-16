@@ -11,17 +11,33 @@ const io = new Server(server, {
   }
 });
 
+// Простая маршрутизация для статических файлов
+app.use(express.static("public")); // HTML/JS/CSS кладем в папку public
+
 io.on("connection", (socket) => {
-  socket.on("offer", (offer) => {
-    socket.broadcast.emit("offer", offer);
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on("join-room", (roomID) => {
+    socket.join(roomID);
+    console.log(`${socket.id} joined room ${roomID}`);
+    // Сообщаем другим в комнате о новом участнике
+    socket.to(roomID).emit("user-joined", socket.id);
   });
 
-  socket.on("answer", (answer) => {
-    socket.broadcast.emit("answer", answer);
+  socket.on("offer", ({ roomID, offer }) => {
+    socket.to(roomID).emit("offer", { from: socket.id, offer });
   });
 
-  socket.on("ice-candidate", (candidate) => {
-    socket.broadcast.emit("ice-candidate", candidate);
+  socket.on("answer", ({ roomID, answer }) => {
+    socket.to(roomID).emit("answer", { from: socket.id, answer });
+  });
+
+  socket.on("ice-candidate", ({ roomID, candidate }) => {
+    socket.to(roomID).emit("ice-candidate", { from: socket.id, candidate });
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
   });
 });
 
