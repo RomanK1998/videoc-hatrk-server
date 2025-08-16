@@ -5,26 +5,27 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
+// Socket.IO
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+    cors: { origin: "*", methods: ["GET","POST"] }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", socket => {
     console.log("New connection:", socket.id);
 
     socket.on("join-room", ({ roomID, name }) => {
+        console.log(`${name} joined room ${roomID}`);
         socket.join(roomID);
         socket.data.name = name;
 
-        // уведомление остальных о новом пользователе
-        const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomID) || []).filter(id => id !== socket.id);
-        otherUsers.forEach(id => io.to(id).emit("user-joined", { id: socket.id, name }));
+        const clients = Array.from(io.sockets.adapter.rooms.get(roomID) || []);
+        const otherClients = clients.filter(id => id !== socket.id);
 
-        // отправка текущих пользователей новому подключившемуся
-        const existingUsers = otherUsers.map(id => {
+        // Уведомляем других о новом пользователе
+        otherClients.forEach(id => io.to(id).emit("user-joined", { id: socket.id, name }));
+
+        // Сообщаем новому пользователю о других в комнате
+        const existingUsers = otherClients.map(id => {
             const s = io.sockets.sockets.get(id);
             return { id: s.id, name: s.data.name || "Гость" };
         });
@@ -35,9 +36,9 @@ io.on("connection", (socket) => {
     socket.on("answer", ({ roomID, answer }) => socket.to(roomID).emit("answer", { from: socket.id, answer }));
     socket.on("ice-candidate", ({ roomID, candidate }) => socket.to(roomID).emit("ice-candidate", { from: socket.id, candidate }));
 
-    socket.on("disconnect", () => {
-        console.log("Disconnected:", socket.id);
-    });
+    socket.on("disconnect", () => console.log("Disconnected:", socket.id));
 });
 
-server.listen(3000, () => console.log("Server running on port 3000"));
+// Render задаёт порт через переменную окружения
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
