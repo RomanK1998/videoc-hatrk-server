@@ -1,7 +1,7 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
 const fs = require("fs");
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
@@ -9,35 +9,34 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET","POST"] }
 });
 
-// ==== Постоянная база пользователей ====
+// Файл базы пользователей
+const dbFile = "./users.json";
 let usersDB = {};
-const dbFile = "users.json";
-
-// Загружаем базу из файла
 if(fs.existsSync(dbFile)){
   usersDB = JSON.parse(fs.readFileSync(dbFile));
 }
 
-// Хранилище сессий онлайн
+// Хранилище текущих подключений
 let users = {}; // { socketId: { username, status, inCallWith } }
 
 io.on("connection", (socket) => {
 
   console.log("Новое соединение:", socket.id);
 
-  // Регистрация
+  // Регистрация / автологин
   socket.on("register", ({username, userId}, callback) => {
-    // Пользователь возвращается по ID
     if(userId && usersDB[userId]){
-      users[socket.id] = { ...usersDB[userId], status:"online", inCallWith:null };
-      callback({ success:true, id:userId });
+      // Автологин — используем сохранённое имя
+      const savedUsername = usersDB[userId].username;
+      users[socket.id] = { username: savedUsername, status:"online", inCallWith:null };
+      callback({ success:true, id:userId, username: savedUsername });
     } else {
       // Новая регистрация
       const newId = Date.now() + Math.random().toString(36).substr(2,5);
       usersDB[newId] = { username };
       users[socket.id] = { username, status:"online", inCallWith:null };
       fs.writeFileSync(dbFile, JSON.stringify(usersDB, null, 2));
-      callback({ success:true, id:newId });
+      callback({ success:true, id:newId, username });
     }
     updateUserList();
   });
@@ -54,18 +53,23 @@ io.on("connection", (socket) => {
       users[targetId].status = "busy";
       users[targetId].inCallWith = socket.id;
       updateUserList();
+
       io.to(targetId).emit("incoming-call", socket.id, offer, users[socket.id].username);
     }
   });
 
   // Ответ на звонок
   socket.on("answer-call", (targetId, answer) => {
-    if(users[targetId]) io.to(targetId).emit("call-answered", answer);
+    if(users[targetId]){
+      io.to(targetId).emit("call-answered", answer);
+    }
   });
 
   // ICE кандидаты
   socket.on("ice-candidate", (targetId, candidate) => {
-    if(users[targetId]) io.to(targetId).emit("ice-candidate", candidate);
+    if(users[targetId]){
+      io.to(targetId).emit("ice-candidate", candidate);
+    }
   });
 
   // Завершение звонка
