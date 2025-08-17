@@ -1,50 +1,35 @@
 const express = require("express");
 const http = require("http");
-const fs = require("fs");
 const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET","POST"] }
+  cors: {
+    origin: "*",
+    methods: ["GET","POST"]
+  }
 });
 
-// Файл базы пользователей
-const dbFile = "./users.json";
-let usersDB = {};
-if(fs.existsSync(dbFile)){
-  usersDB = JSON.parse(fs.readFileSync(dbFile));
-}
-
-// Хранилище текущих подключений
+// Хранилище пользователей
 let users = {}; // { socketId: { username, status, inCallWith } }
 
 io.on("connection", (socket) => {
 
   console.log("Новое соединение:", socket.id);
 
-  // Регистрация / автологин
-  socket.on("register", ({username, userId}, callback) => {
-    if(userId && usersDB[userId]){
-      // Автологин — используем сохранённое имя
-      const savedUsername = usersDB[userId].username;
-      users[socket.id] = { username: savedUsername, status:"online", inCallWith:null };
-      callback({ success:true, id:userId, username: savedUsername });
-    } else {
-      // Новая регистрация
-      const newId = Date.now() + Math.random().toString(36).substr(2,5);
-      usersDB[newId] = { username };
-      users[socket.id] = { username, status:"online", inCallWith:null };
-      fs.writeFileSync(dbFile, JSON.stringify(usersDB, null, 2));
-      callback({ success:true, id:newId, username });
-    }
+  // Регистрация пользователя
+  socket.on("register", (username, callback) => {
+    users[socket.id] = { username, status: "online", inCallWith: null };
     updateUserList();
+    callback({ success: true, id: socket.id });
   });
 
   // Создание звонка
   socket.on("call-user", (targetId, offer) => {
     if(users[targetId]){
       if(users[targetId].status === "busy"){
+        // Если занят — уведомляем
         socket.emit("user-busy", targetId);
         return;
       }
